@@ -1,0 +1,48 @@
+version: 0.2
+
+env:
+  variables:
+    REPOSITORY_URI: <your_account_id>.dkr.ecr.<region>.amazonaws.com/my-app
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI
+      - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+
+  build:
+    commands:
+      - echo Building Docker image...
+      - docker build -t $REPOSITORY_URI:$IMAGE_TAG .
+
+  post_build:
+    commands:
+      - echo Pushing Docker image...
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+
+      - echo Starting image scan...
+      - aws ecr start-image-scan --repository-name my-app --image-id imageTag=$IMAGE_TAG
+
+      - echo Waiting for scan to complete...
+      - aws ecr wait image-scan-complete --repository-name my-app --image-id imageTag=$IMAGE_TAG
+
+      - echo Checking vulnerabilities...
+      - CRITICAL=$(aws ecr describe-image-scan-findings \
+          --repository-name my-app \
+          --image-id imageTag=$IMAGE_TAG \
+          --query 'imageScanFindings.findingCounts.CRITICAL' \
+          --output text)
+
+      - |
+        if [ "$CRITICAL" != "0" ]; then
+          echo "CRITICAL vulnerabilities found. Failing build."
+          exit 1
+        fi
+
+      - echo Creating imagedefinitions.json...
+      - printf '[{"name":"my-container","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+
+artifacts:
+  files:
+    - imagedefinitions.json
