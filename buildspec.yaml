@@ -15,33 +15,35 @@ phases:
     commands:
       - echo Building Docker image...
       - docker build -t $REPOSITORY_URI:$IMAGE_TAG .
+      - docker push $REPOSITORY_URI:$IMAGE_TAG   # ⚠️ IMPORTANT (missing tha)
 
   post_build:
-     commands:
-    - echo "Starting image scan..."
-    - aws ecr start-image-scan \
-        --repository-name simple-docker-service-1233bc5a8f7d \
-        --image-id imageTag=$IMAGE_TAG
+    commands:
+      - echo "Starting image scan..."
+      - aws ecr start-image-scan \
+          --repository-name simple-docker-service-1233bc5a8f7d \
+          --image-id imageTag=$IMAGE_TAG
 
-    - echo "Waiting for scan to complete..."
-    - aws ecr wait image-scan-complete \
-        --repository-name simple-docker-service-1233bc5a8f7d \
-        --image-id imageTag=$IMAGE_TAG
+      - echo "Waiting for scan to complete..."
+      - aws ecr wait image-scan-complete \
+          --repository-name simple-docker-service-1233bc5a8f7d \
+          --image-id imageTag=$IMAGE_TAG
 
-    - echo "Checking CRITICAL vulnerabilities..."
-    - CRITICAL=$(aws ecr describe-image-scan-findings \
-        --repository-name simple-docker-service-1233bc5a8f7d \
-        --image-id imageTag=$IMAGE_TAG \
-        --query 'imageScanFindings.findingCounts.CRITICAL' \
-        --output text)
+      - echo "Checking CRITICAL vulnerabilities..."
+      - CRITICAL=$(aws ecr describe-image-scan-findings \
+          --repository-name simple-docker-service-1233bc5a8f7d \
+          --image-id imageTag=$IMAGE_TAG \
+          --query 'imageScanFindings.findingCounts.CRITICAL' \
+          --output text)
 
-    - echo "CRITICAL count: $CRITICAL"
+      - echo "CRITICAL count: $CRITICAL"
 
-    - |
-      if [ "$CRITICAL" != "0" ]; then
-        echo "❌ CRITICAL vulnerabilities found. Failing build."
-        exit 1
-      fi
+      - |
+        if [ "$CRITICAL" != "0" ]; then
+          echo "❌ CRITICAL vulnerabilities found. Failing build."
+          exit 1
+        fi
+
       - echo Creating imagedefinitions.json...
       - printf '[{"name":"cluster-pipeline","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
 
