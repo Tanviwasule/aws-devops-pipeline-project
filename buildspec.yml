@@ -2,7 +2,9 @@ version: 0.2
 
 env:
   variables:
+    AWS_DEFAULT_REGION: us-east-1
     REPOSITORY_URI: 273960310876.dkr.ecr.us-east-1.amazonaws.com/simple-docker-service-1233bc5a8f7d
+    CONTAINER_NAME: myecs-container
 
 phases:
   pre_build:
@@ -15,7 +17,7 @@ phases:
     commands:
       - echo Building Docker image...
       - docker build -t $REPOSITORY_URI:$IMAGE_TAG .
-      - docker push $REPOSITORY_URI:$IMAGE_TAG   # ⚠️ IMPORTANT (missing tha)
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
 
   post_build:
     commands:
@@ -45,7 +47,7 @@ phases:
         fi
 
       - echo Creating imagedefinitions.json...
-      - printf '[{"name":"cluster-pipeline","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+      - printf '[{"name":"%s","imageUri":"%s"}]' $CONTAINER_NAME $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
 
 artifacts:
   files:
